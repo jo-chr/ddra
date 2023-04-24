@@ -1,0 +1,4 @@
+__pycache__/
+dummy*
+paper_dummy.ipynb
+*.pdf
