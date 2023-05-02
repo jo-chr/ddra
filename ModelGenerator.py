@@ -12,20 +12,31 @@ except:
     from spn_simulator.components.spn_simulate import *
     from spn_simulator.components.spn_io import *
 
+import logging
 import pm4py
 import re
+from fitter import Fitter, get_common_distributions
+import matplotlib.pyplot as plt
+
+
+distributions_dir = "output/distributions/"
 
 
 class ModelGenerator:
     
-    def __init__(self, event_log, state_log):
+    def __init__(self, event_log, state_log, logging_level=logging.CRITICAL):
         self.event_log = event_log
         self.state_log = state_log
+        
+        logging.basicConfig(level=logging_level)
+
+
 
     def generate_model(self):
         
         spn = SPN()
         
+        print('Discover material flow model')
         net, im, fm = pm4py.discover_petri_net_alpha(self.event_log, activity_key='event', case_id_key='order_id', timestamp_key='timestamp')
 
         #add places from pm4py pn to custom SPN
@@ -56,11 +67,43 @@ class ModelGenerator:
         for place in spn.places:
             place.label = re.sub(r'[^\w,]', '', place.label)
 
+        #----determine & parameterize arrival time transitions----#
+        print('Determine arrival transitions & fit distributions')
+
+        for transition in spn.transitions:
+            if transition.input_arcs == []:
+                transition.t_type = "T"
+                transition.distribution = self._estimate_arrival_time_distribution(time_unit="s", export_plots=False)
+
         return spn
         
-    def estimate_arrival_time_distribution(self, export_plots = True):
+    def _estimate_arrival_time_distribution(self, time_unit = "s", export_plots = True):
 
-        arrival_times = []
+        arrival_times = list(self.event_log[self.event_log["event"]=="new_order"]["timestamp"])
+        match time_unit:
+            case "s":
+                arrival_times_td =[(x-y).seconds for x, y in zip(arrival_times[1:], arrival_times)]
+            case "m":
+                arrival_times_td =[((x-y).seconds//60)%60 for x, y in zip(arrival_times[1:], arrival_times)]
+            case "h":
+                arrival_times_td =[(x-y).seconds//3600 for x, y in zip(arrival_times[1:], arrival_times)]
+            case "d":
+                arrival_times_td =[(x-y).days for x, y in zip(arrival_times[1:], arrival_times)]
+            case _:
+                raise Exception("time_unit undefined: {}.".format(time_unit))    
+
+        f = Fitter(arrival_times_td,distributions=get_common_distributions())
+        f.fit()
+
+        if export_plots == True:
+            f.hist()
+            f.plot_pdf(Nbest=1)
+            plt.title("Fitted arrival time distribution")
+            plt.xlabel(time_unit)
+            plt.savefig(distributions_dir + "arrival_time_dist.png")
+        
+        return f.get_best()
+
         
 
 
