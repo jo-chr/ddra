@@ -27,7 +27,8 @@ class ModelGenerator:
     def __init__(self, event_log, state_log, logging_level=logging.CRITICAL):
         self.event_log = event_log
         self.state_log = state_log
-        
+        self. resources = list(state_log["resource"].unique())
+
         logging.basicConfig(level=logging_level)
 
 
@@ -46,6 +47,7 @@ class ModelGenerator:
                 spn.add_place(new_place)
 
         #add transitions from pm4py pn to custom SPN
+        transition:Transition
         for transition in net.transitions:
             new_transition = Transition(label=str(transition),t_type="I")
             spn.add_transition(new_transition)
@@ -67,7 +69,7 @@ class ModelGenerator:
         for place in spn.places:
             place.label = re.sub(r'[^\w,]', '', place.label)
 
-        #----determine & parameterize arrival time transitions----#
+        #----determine & parameterize arrival time timed transitions----#
         print('Determine arrival transitions & fit distributions')
 
         for transition in spn.transitions:
@@ -75,8 +77,18 @@ class ModelGenerator:
                 transition.t_type = "T"
                 transition.distribution = self._estimate_arrival_time_distribution(time_unit="s", export_plots=False)
 
+        #----determine & parameterize resource timed transtions----#
+        print('Determine resource transitions & fit distributions')
+
+        for resource in self.resources:
+            resource_dist = self._estimate_resource_activtiy_distribtuion(resource)
+            spn.get_transition_by_label(resource)
+            
+
+
         return spn
-        
+    
+   
     def _estimate_arrival_time_distribution(self, time_unit = "s", export_plots = True):
 
         arrival_times = list(self.event_log[self.event_log["event"]=="new_order"]["timestamp"])
@@ -103,8 +115,40 @@ class ModelGenerator:
             plt.savefig(distributions_dir + "arrival_time_dist.png")
         
         return f.get_best()
+    
+    def _estimate_resource_activtiy_distribtuion(self, resource, time_unit = "s", export_plots = True):
 
-        
+        busy_times = []
+        idle_times = []
+        activity_durations = []
+
+        resource_state_log = self.state_log[self.state_log["resource"]==resource]
+        busy_times = resource_state_log[resource_state_log["state"]=="busy"]["timestamp"]
+        idle_times = resource_state_log[resource_state_log["state"]=="idle"]["timestamp"]
+
+        match time_unit:
+            case "s":
+                activity_durations = [(x-y).seconds for x,y in zip(idle_times,busy_times)]
+            case "m":
+                activity_durations = [((x-y).seconds//60)%60 for x,y in zip(idle_times,busy_times)]
+            case "h":
+                activity_durations = [(x-y).seconds//3600 for x,y in zip(idle_times,busy_times)]
+            case "d":
+                activity_durations = [(x-y).days for x,y in zip(idle_times,busy_times)]
+            case _:
+                raise Exception("time_unit undefined: {}.".format(time_unit))    
+    
+        f = Fitter(activity_durations,distributions=get_common_distributions())
+        f.fit()
+
+        if export_plots == True:
+            f.hist()
+            f.plot_pdf(Nbest=1)
+            plt.title("Fitted resource activity distribution " + str(resource))
+            plt.xlabel(time_unit)
+            plt.savefig(distributions_dir + str(resource) + "_activity_dist.png")
+
+        return f.get_best()
 
 
 
