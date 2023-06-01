@@ -25,7 +25,7 @@ class ModelValidator:
         self.spn = spn
         self.time_unit = time_unit
 
-    def input_output_transformation(self, nr_replications, time, results_place, ground_truth, warm_start, warm_start_time):
+    def input_output_transformation(self, nr_replications, time, results_transition, ground_truth, warm_start, warm_start_time):
         
         y_r = []
         for i in range(nr_replications):
@@ -37,12 +37,12 @@ class ModelValidator:
             else:
                 simulate(spn, max_time = time, start_time = 0, time_unit = self.time_unit, verbosity = 0, protocol = False)
 
-            if isinstance(results_place, list):
+            if isinstance(results_transition, list):
                 x = 0
-                for place in results_place:
-                    x += spn.get_place_by_label(place).time_non_empty
+                for transition in results_transition:
+                    x += spn.get_transition_by_label(transition).n_times_fired
                 y_r.append(x)
-            else: y_r.append(spn.get_place_by_label(results_place).time_non_empty)
+            else: y_r.append(spn.get_transition_by_label(results_transition).n_times_fired)
     
         print("Simulation results: {}".format(y_r))
         y_mean = np.mean(y_r)
