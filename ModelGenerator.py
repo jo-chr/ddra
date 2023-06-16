@@ -12,12 +12,17 @@ except:
     from spn_simulator.components.spn_simulate import *
     from spn_simulator.components.spn_io import *
 
+import numpy as np
 import logging
+import configparser
 import pm4py
+import json
 import re
 from fitter import Fitter, get_common_distributions
 import matplotlib.pyplot as plt
 
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 distributions_dir = "output/distributions/"
 
@@ -28,7 +33,7 @@ class ModelGenerator:
         self.event_log = event_log
         self.state_log = state_log
         self.activities = list(event_log["event"][event_log["event_type"].notnull()].unique())
-        self. resources = list(state_log["resource"].unique())
+        self.resources = list(state_log["resource"].unique())
 
 
         logging.basicConfig(level=logging_level)
@@ -70,6 +75,12 @@ class ModelGenerator:
         #rename palces in custom SPN
         for place in spn.places:
             place.label = re.sub(r'[^\w,]', '', place.label)
+
+        #----determine & parameterize arrival time timed transitions----#
+        print('Determine immediate transition firing weights')
+        for transition in spn.transitions:
+            if transition.t_type == "I":
+                transition.weight = len(self.event_log[(self.event_log["event_type"]!="end") & (self.event_log["event"]==transition.label)])
 
         #----determine & parameterize arrival time timed transitions----#
         print('Determine arrival transitions & fit distributions')
@@ -115,7 +126,7 @@ class ModelGenerator:
             case _:
                 raise Exception("time_unit undefined: {}.".format(time_unit))    
 
-        f = Fitter(arrival_times_td,distributions=get_common_distributions())
+        f = Fitter(arrival_times_td,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
         f.fit()
 
         if export_plots == True:
@@ -132,11 +143,19 @@ class ModelGenerator:
 
         start_times = []
         end_times = []
+        failure_times = []
         activity_durations = []
 
         activity_log = self.event_log[self.event_log["event"]==activity]
-        start_times = activity_log[activity_log["event_type"]=="start"]["timestamp"]
-        end_times = activity_log[activity_log["event_type"]=="end"]["timestamp"]
+        failure_times = self.state_log[(self.state_log["resource"]==activity.split("_")[0]) & (self.state_log["state"]=="failure")]["timestamp"].reset_index(drop=True)
+        start_times = activity_log[activity_log["event_type"]=="start"]["timestamp"].reset_index(drop=True)
+        end_times = activity_log[activity_log["event_type"]=="end"]["timestamp"].reset_index(drop=True)
+
+        #if failure timestamp is identical with "end" event_type time stamp -> remove whole start-end pair/exclude from dist fitting
+        failure_times_matches=np.where(np.isin(end_times,failure_times))
+        for index in sorted(list(failure_times_matches[0]), reverse=True):
+            del start_times[index]
+            del end_times[index]
 
         match time_unit:
             case "s":
@@ -150,7 +169,7 @@ class ModelGenerator:
             case _:
                 raise Exception("time_unit undefined: {}.".format(time_unit))  
     
-        f = Fitter(activity_durations,distributions=get_common_distributions()+ ["triang"])
+        f = Fitter(activity_durations,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
         f.fit()
 
         if export_plots == True:
@@ -165,13 +184,13 @@ class ModelGenerator:
     
     def _create_resource_failure_model(self, resource, spn):
 
-        p_ok = Place(label="{}_OK".format(resource),n_tokens=1)
-        p_failed = Place(label="{}_Failed".format(resource),n_tokens=0)
+        p_ok = Place(label="{}_ok".format(resource),n_tokens=1)
+        p_failed = Place(label="{}_failed".format(resource),n_tokens=0)
 
-        t_fail = Transition(label="Fail_{}".format(resource), t_type="T")
+        t_fail = Transition(label="fail_{}".format(resource), t_type="T")
         t_fail.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "fail")
 
-        t_repair = Transition(label="Repair_{}".format(resource), t_type="T")
+        t_repair = Transition(label="repair_{}".format(resource), t_type="T")
         t_repair.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "repair")
 
         spn.add_place(p_ok)
@@ -203,7 +222,7 @@ class ModelGenerator:
         if mode == "repair":
             durations = [(x-y).total_seconds() for x,y in zip(repair_times,failure_times)]
 
-            f = Fitter(durations,distributions=get_common_distributions())
+            f = Fitter(durations,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
             f.fit()
 
             if export_plots == True:
@@ -219,7 +238,7 @@ class ModelGenerator:
             failure_times.pop(0)
             durations = [(x-y).total_seconds() for x,y in zip(failure_times,repair_times)]
 
-            f = Fitter(durations,distributions=get_common_distributions())
+            f = Fitter(durations,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
             f.fit()
 
             if export_plots == True:
