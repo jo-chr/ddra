@@ -76,7 +76,7 @@ class ModelGenerator:
         for place in spn.places:
             place.label = re.sub(r'[^\w,]', '', place.label)
 
-        #----determine & parameterize arrival time timed transitions----#
+        #----determine immediate transition firing weights----#
         print('Determine immediate transition firing weights')
         for transition in spn.transitions:
             if transition.t_type == "I":
@@ -101,6 +101,27 @@ class ModelGenerator:
                     transition.t_type = "T"
                     transition.time_unit = "s"
                     transition.distribution = activity_dist
+
+        #----determine capacities & add inhibitor arcs----#
+        if config.getboolean("CAPACITY_EXTRACTION","extract_resource_capacities") == True:
+            print('Determine resource capacities/buffer sizes & add inhibitor arcs to model')
+            
+            for capacaty_relation in config.items("CAPACITY_EXTRACTION.CAPACITY_RELATIONSHIPS"):
+                current_cap = 0
+                caps = []
+                order_ids = []
+                for order_id, event in zip(self.event_log[self.event_log["event_type"]!="end"]["order_id"],self.event_log[self.event_log["event_type"]!="end"]["event"]):
+                    if capacaty_relation[0] in event:
+                        current_cap +=1
+                        caps.append(current_cap)
+                        order_ids.append(order_id)
+                    if capacaty_relation[1] in event and order_id in order_ids:
+                        current_cap -=1
+
+                for place in spn.places:
+                        if place.label in "{},{}".format(capacaty_relation[0],capacaty_relation[1]):
+                            transition_inhib = spn.get_transition_by_label(capacaty_relation[0])
+                            spn.add_inhibitor_arc(transition_inhib,place,max(caps))
 
         #----create resource failure models----#
         print('Create resource failure models & fit failure and repair distributions')
