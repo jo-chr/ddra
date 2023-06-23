@@ -88,24 +88,24 @@ class ModelGenerator:
         for transition in spn.transitions:
             if transition.input_arcs == []:
                 transition.t_type = "T"
-                transition.time_unit = "s"
-                transition.distribution = self._estimate_arrival_time_distribution(time_unit="s", export_plots=True)
+                transition.time_unit = config.get("TRANSITION_TIME_UNIT","time_unit")
+                transition.distribution = self._estimate_arrival_time_distribution(time_unit=transition.time_unit, export_plots=True)
 
         #----determine & parameterize timed transtions----#
         print('Determine timed transitions & fit distributions')
 
         for activity in self.activities:
-            activity_dist = self._estimate_activity_distribution(activity)
+            activity_dist = self._estimate_activity_distribution(activity, time_unit=config.get("TRANSITION_TIME_UNIT","time_unit"), export_plots=True)
             for transition in spn.transitions:
                 if transition.label == activity:
                     transition.t_type = "T"
-                    transition.time_unit = "s"
+                    transition.time_unit = config.get("TRANSITION_TIME_UNIT","time_unit")
                     transition.distribution = activity_dist
 
         #----determine capacities & add inhibitor arcs----#
         if config.getboolean("CAPACITY_EXTRACTION","extract_resource_capacities") == True:
             print('Determine resource capacities/buffer sizes & add inhibitor arcs to model')
-            
+
             for capacaty_relation in config.items("CAPACITY_EXTRACTION.CAPACITY_RELATIONSHIPS"):
                 current_cap = 0
                 caps = []
@@ -127,19 +127,19 @@ class ModelGenerator:
         print('Create resource failure models & fit failure and repair distributions')
 
         for resource in self.resources:
-            self._create_resource_failure_model(resource, spn)
+            self._create_resource_failure_model(resource, spn, time_unit=config.get("TRANSITION_TIME_UNIT","time_unit"))
 
         return spn
     
    
-    def _estimate_arrival_time_distribution(self, time_unit = "s", export_plots = True):
+    def _estimate_arrival_time_distribution(self, time_unit, export_plots = True):
 
         arrival_times = list(self.event_log[self.event_log["event"]=="new_order"]["timestamp"])
         match time_unit:
             case "s":
                 arrival_times_td =[(x-y).total_seconds() for x, y in zip(arrival_times[1:], arrival_times)] #.seconds
             case "m":
-                arrival_times_td =[((x-y).total_seconds()//60)%60 for x, y in zip(arrival_times[1:], arrival_times)]
+                arrival_times_td =[((x-y).total_seconds()/60)%60 for x, y in zip(arrival_times[1:], arrival_times)]
             case "h":
                 arrival_times_td =[(x-y).total_seconds()//3600 for x, y in zip(arrival_times[1:], arrival_times)]
             case "d":
@@ -160,7 +160,7 @@ class ModelGenerator:
         
         return f.get_best()
     
-    def _estimate_activity_distribution(self, activity, time_unit = "s", export_plots = True):
+    def _estimate_activity_distribution(self, activity, time_unit, export_plots = True):
 
         start_times = []
         end_times = []
@@ -182,7 +182,7 @@ class ModelGenerator:
             case "s":
                 activity_durations = [(x-y).total_seconds() for x,y in zip(end_times,start_times)]
             case "m":
-                activity_durations = [((x-y).total_seconds()//60)%60 for x,y in zip(end_times,start_times)]
+                activity_durations = [((x-y).total_seconds()/60)%60 for x,y in zip(end_times,start_times)]
             case "h":
                 activity_durations = [(x-y).total_seconds()//3600 for x,y in zip(end_times,start_times)]
             case "d":
@@ -203,16 +203,16 @@ class ModelGenerator:
 
         return f.get_best()
     
-    def _create_resource_failure_model(self, resource, spn):
+    def _create_resource_failure_model(self, resource, spn, time_unit):
 
         p_ok = Place(label="{}_ok".format(resource),n_tokens=1)
         p_failed = Place(label="{}_failed".format(resource),n_tokens=0)
 
         t_fail = Transition(label="fail_{}".format(resource), t_type="T")
-        t_fail.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "fail")
+        t_fail.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "fail", time_unit=time_unit)
 
         t_repair = Transition(label="repair_{}".format(resource), t_type="T")
-        t_repair.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "repair")
+        t_repair.distribution = self._estimate_resource_failure_model_distribution(resource, mode = "repair", time_unit=time_unit)
 
         spn.add_place(p_ok)
         spn.add_place(p_failed)
@@ -229,7 +229,7 @@ class ModelGenerator:
             if resource == transition.label.split("_")[0]:
                 spn.add_inhibitor_arc(transition=spn.get_transition_by_label(transition.label),place=p_failed)
 
-    def _estimate_resource_failure_model_distribution(self, resource, mode, export_plots = True):
+    def _estimate_resource_failure_model_distribution(self, resource, mode, time_unit, export_plots = True):
 
         failure_times = []
         repair_times = []
@@ -241,7 +241,17 @@ class ModelGenerator:
         repair_times = resource_state_log[resource_state_log["state"]=="repaired"]["timestamp"].tolist()
 
         if mode == "repair":
-            durations = [(x-y).total_seconds() for x,y in zip(repair_times,failure_times)]
+            match time_unit:
+                case "s":
+                    durations = [(x-y).total_seconds() for x,y in zip(repair_times,failure_times)]
+                case "m":
+                    durations = [(x-y).total_seconds()/60 for x,y in zip(repair_times,failure_times)]
+                case "h":
+                    durations = [(x-y).total_seconds()//3600 for x,y in zip(repair_times,failure_times)]
+                case "d":
+                    durations = [(x-y).days for x,y in zip(repair_times,failure_times)]
+                case _:
+                    raise Exception("time_unit undefined: {}.".format(time_unit))  
 
             f = Fitter(durations,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
             f.fit()
@@ -250,14 +260,25 @@ class ModelGenerator:
                 f.hist()
                 f.plot_pdf(Nbest=1)
                 plt.title("Fitted repair distribution " + str(resource))
-                plt.xlabel("s")
+                plt.xlabel(time_unit)
                 plt.savefig(distributions_dir + str(resource) + "repair_dist.png")
                 plt.clf()
 
         if mode == "fail":
             
             failure_times.pop(0)
-            durations = [(x-y).total_seconds() for x,y in zip(failure_times,repair_times)]
+
+            match time_unit:
+                case "s":
+                    durations = [(x-y).total_seconds() for x,y in zip(failure_times,repair_times)]
+                case "m":
+                    durations = [(x-y).total_seconds()/60 for x,y in zip(failure_times,repair_times)]
+                case "h":
+                    durations = [(x-y).total_seconds()//3600 for x,y in zip(failure_times,repair_times)]
+                case "d":
+                    durations = [(x-y).days for x,y in zip(failure_times,repair_times)]
+                case _:
+                    raise Exception("time_unit undefined: {}.".format(time_unit))  
 
             f = Fitter(durations,distributions=json.loads(config.get("DISTRIBUTIONS","dists")))
             f.fit()
@@ -266,7 +287,7 @@ class ModelGenerator:
                 f.hist()
                 f.plot_pdf(Nbest=1)
                 plt.title("Fitted failure distribution " + str(resource))
-                plt.xlabel("s")
+                plt.xlabel(time_unit)
                 plt.savefig(distributions_dir + str(resource) + "failure_dist.png")
                 plt.clf()
 
