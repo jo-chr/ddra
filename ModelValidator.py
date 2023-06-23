@@ -68,14 +68,40 @@ class ModelValidator:
     def calculate_ground_truth(self, time, mode):
 
         el_total_time = self.event_log["timestamp"][len(self.event_log["timestamp"]) - 1] - self.event_log["timestamp"][0]
-        time_multiplier = el_total_time.seconds // time
+
+        match self.time_unit:
+            case "s":
+                time_multiplier = el_total_time.total_seconds() // time
+            case "m":
+                time_multiplier = int((el_total_time.total_seconds()//60) // time)
+            case "h":
+                time_multiplier = el_total_time.hours // time
+            case "d":
+                time_multiplier = el_total_time.days // time
+            case _:
+                raise Exception("time_unit undefined: {}.".format(self.time_unit))    
 
         start_time = self.event_log["timestamp"][0]
 
         ground_truth = []
 
+        print(time_multiplier)
+
         for i in range(time_multiplier):
-            end_time = start_time + datetime.timedelta(seconds=time)
+
+            match self.time_unit:
+                case "s":
+                    end_time = start_time + datetime.timedelta(seconds=time)
+                case "m":
+                    end_time = start_time + datetime.timedelta(minutes=time)
+                case "h":
+                    end_time = start_time + datetime.timedelta(hours=time)
+                case "d":
+                    end_time = start_time + datetime.timedelta(days=time)
+                case _:
+                    raise Exception("time_unit undefined: {}.".format(self.time_unit))  
+
+            
             event_log_subset = self.event_log[(self.event_log['timestamp'] >= start_time) & (self.event_log['timestamp'] <= end_time)]
             start_time = end_time
 
