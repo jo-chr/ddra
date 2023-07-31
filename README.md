@@ -11,14 +11,16 @@ This is a tool for data-driven reliability assessment of Cyber-physical Producti
 :information_source: *Tested with Python 3.11*
 
 [PySPN](https://github.com/jo-chr/pyspn.git) is a requirement for this tool. Clone it and place it in the root folder of the tool like so:
-    .
-    ├── components
-    ├── output
-    ├── pyspn
-    ├── raw_data
-    ├── cs_two_station.ini
-    ├── cs_two_station.ipynb
-    └── ...
+```
+.
+├── components/
+├── output/
+├── pyspn/
+├── raw_data/
+├── cs_two_station.ini
+├── cs_two_station.ipynb
+└── ...
+```
 
 ### via git
 
