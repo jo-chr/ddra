@@ -1,0 +1,6 @@
+numpy~=1.23.3
+graphviz~=0.20.1
+scipy~=1.10.1
+pm4py~=2.7.3
+fitter~=1.5.2
+matplotlib~=3.7.1
