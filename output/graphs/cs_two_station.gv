@@ -1,0 +1,96 @@
+digraph {
+	"agv2_transport_to_cell2_buffer,enter_cell2" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"direct_to_line1,agv1_transport_to_cell1_buffer" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"agv1_transport_to_cell1_buffer,enter_cell1" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"direct_to_line2,agv2_transport_to_cell2_buffer" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"enter_cell1,cell1_operation" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"enter_cell2,cell2_operation" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"cell1_operation,cell2_operation,order_completed" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	"new_order,direct_to_line2,direct_to_line1" [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	agv1_ok [label=<&#9679;> fixedsize=true height=0.6 shape=circle width=0.6]
+	agv1_failed [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	cell1_ok [label=<&#9679;> fixedsize=true height=0.6 shape=circle width=0.6]
+	cell1_failed [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	agv2_ok [label=<&#9679;> fixedsize=true height=0.6 shape=circle width=0.6]
+	agv2_failed [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	cell2_ok [label=<&#9679;> fixedsize=true height=0.6 shape=circle width=0.6]
+	cell2_failed [label="" fixedsize=true height=0.6 shape=circle width=0.6]
+	enter_cell2 [label="" color=black fixedsize=true height=0.2 shape=rectangle style=filled width=0.6 xlabel="enter_cell2
+2013"]
+	"agv2_transport_to_cell2_buffer,enter_cell2" -> enter_cell2
+	enter_cell2 -> "enter_cell2,cell2_operation"
+	"enter_cell2,cell2_operation" -> enter_cell2 [arrowhead=dot]
+	enter_cell1 [label="" color=black fixedsize=true height=0.2 shape=rectangle style=filled width=0.6 xlabel="enter_cell1
+2419"]
+	"agv1_transport_to_cell1_buffer,enter_cell1" -> enter_cell1
+	enter_cell1 -> "enter_cell1,cell1_operation"
+	"enter_cell1,cell1_operation" -> enter_cell1 [arrowhead=dot]
+	new_order [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="new_order
+weibull_min"]
+	new_order -> "new_order,direct_to_line2,direct_to_line1"
+	order_completed [label="" color=black fixedsize=true height=0.2 shape=rectangle style=filled width=0.6 xlabel="order_completed
+4431"]
+	"cell1_operation,cell2_operation,order_completed" -> order_completed
+	agv1_transport_to_cell1_buffer [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="agv1_transport_to_cell1_buffer
+norm"]
+	"direct_to_line1,agv1_transport_to_cell1_buffer" -> agv1_transport_to_cell1_buffer
+	agv1_transport_to_cell1_buffer -> "agv1_transport_to_cell1_buffer,enter_cell1"
+	"agv1_transport_to_cell1_buffer,enter_cell1" -> agv1_transport_to_cell1_buffer [arrowhead=dot xlabel=5]
+	agv1_failed -> agv1_transport_to_cell1_buffer [arrowhead=dot]
+	cell1_operation [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="cell1_operation
+norm"]
+	"enter_cell1,cell1_operation" -> cell1_operation
+	cell1_operation -> "cell1_operation,cell2_operation,order_completed"
+	cell1_failed -> cell1_operation [arrowhead=dot]
+	cell2_operation [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="cell2_operation
+norm"]
+	"enter_cell2,cell2_operation" -> cell2_operation
+	cell2_operation -> "cell1_operation,cell2_operation,order_completed"
+	cell2_failed -> cell2_operation [arrowhead=dot]
+	direct_to_line1 [label="" color=black fixedsize=true height=0.2 shape=rectangle style=filled width=0.6 xlabel="direct_to_line1
+7853"]
+	"new_order,direct_to_line2,direct_to_line1" -> direct_to_line1
+	direct_to_line1 -> "direct_to_line1,agv1_transport_to_cell1_buffer"
+	direct_to_line2 [label="" color=black fixedsize=true height=0.2 shape=rectangle style=filled width=0.6 xlabel="direct_to_line2
+5144"]
+	"new_order,direct_to_line2,direct_to_line1" -> direct_to_line2
+	direct_to_line2 -> "direct_to_line2,agv2_transport_to_cell2_buffer"
+	agv2_transport_to_cell2_buffer [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="agv2_transport_to_cell2_buffer
+lognorm"]
+	"direct_to_line2,agv2_transport_to_cell2_buffer" -> agv2_transport_to_cell2_buffer
+	agv2_transport_to_cell2_buffer -> "agv2_transport_to_cell2_buffer,enter_cell2"
+	"agv2_transport_to_cell2_buffer,enter_cell2" -> agv2_transport_to_cell2_buffer [arrowhead=dot xlabel=5]
+	agv2_failed -> agv2_transport_to_cell2_buffer [arrowhead=dot]
+	fail_agv1 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="fail_agv1
+lognorm"]
+	agv1_ok -> fail_agv1
+	fail_agv1 -> agv1_failed
+	repair_agv1 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="repair_agv1
+gamma"]
+	agv1_failed -> repair_agv1
+	repair_agv1 -> agv1_ok
+	fail_cell1 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="fail_cell1
+weibull_min"]
+	cell1_ok -> fail_cell1
+	fail_cell1 -> cell1_failed
+	repair_cell1 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="repair_cell1
+lognorm"]
+	cell1_failed -> repair_cell1
+	repair_cell1 -> cell1_ok
+	fail_agv2 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="fail_agv2
+lognorm"]
+	agv2_ok -> fail_agv2
+	fail_agv2 -> agv2_failed
+	repair_agv2 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="repair_agv2
+lognorm"]
+	agv2_failed -> repair_agv2
+	repair_agv2 -> agv2_ok
+	fail_cell2 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="fail_cell2
+lognorm"]
+	cell2_ok -> fail_cell2
+	fail_cell2 -> cell2_failed
+	repair_cell2 [label="" color=black fixedsize=true height=0.2 shape=rectangle width=0.6 xlabel="repair_cell2
+lognorm"]
+	cell2_failed -> repair_cell2
+	repair_cell2 -> cell2_ok
+}
