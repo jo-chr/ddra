@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from pyspn.components import spn_visualization, spn_io
 
-from components.ModelGenerator import ModelGenerator
+from components.ModelExtractor import ModelExtractor
 from components.ModelValidator import ModelValidator
 from components.ModelManipulator import ModelManipulator
 
@@ -16,8 +16,8 @@ state_log = pd.read_csv('raw_data/cs_two_station/state_log.csv', sep=";", parse_
 event_log_unseen = pd.read_csv('raw_data/cs_two_station/event_log_unseen.csv', sep=";", converters={"order_id":str}, parse_dates=["timestamp"], dayfirst=True)
 state_log_unseen = pd.read_csv('raw_data/cs_two_station/state_log_unseen.csv', sep=";", parse_dates=["timestamp"], dayfirst=True)
 
-mg = ModelGenerator(event_log, state_log, config)
-rel_model = mg.generate_model()
+mg = ModelExtractor(event_log, state_log, config)
+rel_model = mg.extract_model()
 
 mv = ModelValidator(rel_model,"m",event_log,state_log,event_log_unseen,state_log_unseen)
 ci, y_mean, gt_ci, gt_mean, gt_ci_unseen, gt_mean_unseen = mv.validate_model(nr_replications=100, time = 1440, results_transition="order_completed", kpi="production volume")
